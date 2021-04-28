@@ -17,6 +17,7 @@ import (
 	"os"
 	"runtime"
 	"time"
+	"reflect"
 )
 
 func imgToMat(img *image.RGBA) gocv.Mat{
@@ -51,12 +52,38 @@ func takeScreeShot(area image.Rectangle) gocv.Mat{
 	return mat
 }
 
-func midCactusDetector(img gocv.Mat) bool{
-	var red = color.RGBA{255, 0, 0, 10}
-	var rect = image.Rectangle{image.Point{100, 335}, image.Point{200, 350}}
-	gocv.Rectangle(&img, rect, red, 2)
-	return true
+func objInRegion(img gocv.Mat, x1, y1, x2, y2 int, bgr [3]uint8, reg []gocv.Mat) bool{
+	for i := x1; i < x2; i++ {
+		for j := y1; j < y2; j++ {
+			var pixel = [3]uint8{reg[0].GetUCharAt(j, i), reg[1].GetUCharAt(j, i), reg[2].GetUCharAt(j, i)}
+			if !(reflect.DeepEqual(pixel, bgr)) {
+				return true
+			}
+		}
+	}
+	return false
 }
+
+func midCactusDetector(img gocv.Mat, x1, y1, x2, y2 int, bgr [3]uint8, reg []gocv.Mat) bool{
+	var rect = image.Rectangle{image.Point{x1, y1}, image.Point{x2, y2}}
+
+	gocv.Rectangle(&img, rect, red, 2)
+
+	return objInRegion(img, x1, y1, x2, y2, bgr, reg)
+}
+
+func midBirdDetector(img gocv.Mat, x1, y1, x2, y2 int, bgr [3]uint8, reg []gocv.Mat) bool{
+	var rect = image.Rectangle{image.Point{x1, y1}, image.Point{x2, y2}}
+
+	gocv.Rectangle(&img, rect, blue, 2)
+
+	return objInRegion(img, x1, y1, x2, y2, bgr, reg)
+}
+
+var red = color.RGBA{255, 0, 0, 10}
+var blue = color.RGBA{0, 0, 255, 10}
+var green = color.RGBA{0, 255, 0, 10}
+var yellow = color.RGBA{0, 255, 255, 10}
 
 func main() {
 
@@ -97,13 +124,17 @@ func main() {
 	}
 	for {
 		img = takeScreeShot(bounds)
+		var split = gocv.Split(img)
+		var backGroundColor = [3]uint8{split[0].GetUCharAt(10, 100), split[1].GetUCharAt(10, 100), split[2].GetUCharAt(10, 100)}
 
-		var midCactus bool = midCactusDetector(img)
-
-		if midCactus{
+		if midCactusDetector(img, 100, 335, 200, 350, backGroundColor, split){
 			kup.Press()
 			time.Sleep(time.Millisecond)
 			kup.Release()
+		}else if midBirdDetector(img, 100, 300, 200, 330, backGroundColor, split){
+			kdown.Press()
+			time.Sleep(400 * time.Millisecond)
+			kdown.Release()
 		}
 
 		window.IMShow(img)
