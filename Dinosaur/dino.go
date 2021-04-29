@@ -20,6 +20,53 @@ import (
 	"reflect"
 )
 
+type points struct {
+	points int64
+	timeStart int64
+	setCounter uint8
+	speedEnc uint8
+}
+
+
+func speedHandler(arrCm, arrBm *[4]int, p *points) {
+	p.points = time.Now().Unix() - p.timeStart
+	if p.points > 20 && p.setCounter == 0{
+		arrCm[0] += 20
+		arrCm[2] += 20
+		p.setCounter++
+	}else if p.points > 30 && p.setCounter == 1{
+		arrCm[0] += 20
+		arrCm[2] += 20
+		p.setCounter++
+	}else if p.points > 40 && p.setCounter == 2{
+		arrCm[0] += 30
+		arrCm[2] += 30
+		p.setCounter++
+	}else if p.points > 50 && p.setCounter == 3{
+		arrCm[0] += 30
+		arrCm[2] += 30
+		p.setCounter++
+	}else if p.points > 60 && p.setCounter == 4{
+		arrCm[0] += 30
+		arrCm[2] += 30
+		p.setCounter++
+	}
+	arrBm[0] = arrCm[0] + 40
+	arrBm[2] = arrCm[2] - 10
+}
+
+func reset(arrCm , arrBm *[4]int, p *points){
+	arrCm[0] -= int(p.setCounter)*int(p.speedEnc)
+	arrCm[1] -= int(p.setCounter)*int(p.speedEnc)
+	arrCm[2] -= int(p.setCounter)*int(p.speedEnc)
+	arrCm[3] -= int(p.setCounter)*int(p.speedEnc)
+	p.timeStart = time.Now().Unix()
+	p.points = 0
+	p.setCounter = 0
+	arrBm[0] = arrCm[0] + 40
+	arrBm[2] = arrCm[2] - 10
+}
+
 func imgToMat(img *image.RGBA) gocv.Mat{
 
 	bounds := img.Bounds()
@@ -52,7 +99,20 @@ func takeScreeShot(area image.Rectangle) gocv.Mat{
 	return mat
 }
 
-func objInRegion(img gocv.Mat, x1, y1, x2, y2 int, bgr [3]uint8, reg []gocv.Mat) bool{
+func gameOverDetector(img gocv.Mat, split []gocv.Mat) bool{
+	var x, y int = 600, 300
+	for i := x-50; i < x; i++ {
+		for j := y-50; j < y; j++ {
+			var pixel = [3]uint8{split[0].GetUCharAt(j, i), split[1].GetUCharAt(j, i), split[2].GetUCharAt(j, i)}
+			if (reflect.DeepEqual(pixel, [3]uint8{8, 8, 8})) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func objInRegion(x1, y1, x2, y2 int, bgr [3]uint8, reg []gocv.Mat) bool{
 	for i := x1; i < x2; i++ {
 		for j := y1; j < y2; j++ {
 			var pixel = [3]uint8{reg[0].GetUCharAt(j, i), reg[1].GetUCharAt(j, i), reg[2].GetUCharAt(j, i)}
@@ -69,7 +129,7 @@ func midCactusDetector(img gocv.Mat, x1, y1, x2, y2 int, bgr [3]uint8, reg []goc
 
 	gocv.Rectangle(&img, rect, red, 2)
 
-	return objInRegion(img, x1, y1, x2, y2, bgr, reg)
+	return objInRegion(x1, y1, x2, y2, bgr, reg)
 }
 
 func midBirdDetector(img gocv.Mat, x1, y1, x2, y2 int, bgr [3]uint8, reg []gocv.Mat) bool{
@@ -77,7 +137,7 @@ func midBirdDetector(img gocv.Mat, x1, y1, x2, y2 int, bgr [3]uint8, reg []gocv.
 
 	gocv.Rectangle(&img, rect, blue, 2)
 
-	return objInRegion(img, x1, y1, x2, y2, bgr, reg)
+	return objInRegion(x1, y1, x2, y2, bgr, reg)
 }
 
 var red = color.RGBA{255, 0, 0, 10}
@@ -87,13 +147,17 @@ var yellow = color.RGBA{0, 255, 255, 10}
 
 func main() {
 
-	fmt.Print("Running!\n")
 	bounds := image.Rectangle{image.Point{0, 110}, image.Point{1200, 700}}//screenshot.GetDisplayBounds(0)
 	img := takeScreeShot(bounds)
 
 	window := gocv.NewWindow("Dino")
 	window.ResizeWindow(2560/4, 1440/4)
-	var status int16 = 0
+	var status bool = true
+	var dinoRect = image.Rectangle{image.Point{0, 285}, image.Point{85, 380}}
+	var midCactusCoords = [4]int{100, 340, 180, 350}
+	var midBirdCoord = [4]int{140, 300, 170, 310}
+	var points = points{}
+	points.speedEnc = 20
 
 	kup, err := keybd_event.NewKeyBonding()
 	if err != nil {
@@ -110,39 +174,64 @@ func main() {
 	kup.SetKeys(keybd_event.VK_UP)
 	kdown.SetKeys(keybd_event.VK_DOWN)
 
-	fmt.Printf("Press the \"a\" button to procede\nIn alternative press ESC, or the X button to exit in any moment\n");
+	fmt.Printf("Center the dino in the red rectangle and press the \"a\" button, then press on the browser to procede\nIn alternative press ESC, or the X button to exit in any moment\n");
 
-	for status == 0 {
-		key := window.WaitKey(1)
-		if key == 97{	// Close the window if ESC button was pressed or the x button is pressed
-			status = 1
-		}
-		if key == 27  || window.GetWindowProperty(gocv.WindowPropertyAspectRatio) < 0{	// Close the window if ESC button was pressed or the x button is pressed
-			os.Exit(3)
-			break
-		}
-	}
 	for {
 		img = takeScreeShot(bounds)
-		var split = gocv.Split(img)
-		var backGroundColor = [3]uint8{split[0].GetUCharAt(10, 100), split[1].GetUCharAt(10, 100), split[2].GetUCharAt(10, 100)}
-
-		if midCactusDetector(img, 100, 335, 200, 350, backGroundColor, split){
-			kup.Press()
-			time.Sleep(time.Millisecond)
-			kup.Release()
-		}else if midBirdDetector(img, 100, 300, 200, 330, backGroundColor, split){
-			kdown.Press()
-			time.Sleep(400 * time.Millisecond)
-			kdown.Release()
-		}
+		gocv.Rectangle(&img, dinoRect, red, 2)
 
 		window.IMShow(img)
 
-		if window.WaitKey(1) == 27  || window.GetWindowProperty(gocv.WindowPropertyAspectRatio) < 0{	// Close the window if ESC button was pressed or the x button is pressed
-			os.Exit(3)
+		key := window.WaitKey(1)
+		if key == 97{	// Continue if a button was pressed
 			break
 		}
+		if key == 27  || window.GetWindowProperty(gocv.WindowPropertyAspectRatio) < 0{	// Close the window if ESC button was pressed or the x button is pressed
+			os.Exit(3)
+		}
 	}
+	for {
+		reset(&midCactusCoords, &midBirdCoord, &points)
+		for status {
 
+			img = takeScreeShot(bounds)
+			var split = gocv.Split(img)
+			var backGroundColor = [3]uint8{split[0].GetUCharAt(10, 100), split[1].GetUCharAt(10, 100), split[2].GetUCharAt(10, 100)}
+
+			if midCactusDetector(img, midCactusCoords[0], midCactusCoords[1], midCactusCoords[2], midCactusCoords[3], backGroundColor, split){
+				kup.Press()
+				time.Sleep(time.Millisecond)
+				kup.Release()
+			}else if midBirdDetector(img, midBirdCoord[0], midBirdCoord[1], midBirdCoord[2], midBirdCoord[3], backGroundColor, split){
+				kdown.Press()
+				time.Sleep(400 * time.Millisecond)
+				kdown.Release()
+			}
+
+			fmt.Printf("points: %d\n", points)
+			
+			speedHandler(&midCactusCoords, &midBirdCoord, &points)
+			status = !gameOverDetector(img, split)
+
+			window.IMShow(img)
+
+			if !status {
+				fmt.Printf("Game Over! Press  the \"retry\" button, or press ESC to close...\n")
+			}
+			if window.WaitKey(1) == 27  || window.GetWindowProperty(gocv.WindowPropertyAspectRatio) < 0{	// Close the window if ESC button was pressed or the x button is pressed
+				os.Exit(3)
+			}
+
+		}
+
+		img = takeScreeShot(bounds)
+		var split = gocv.Split(img)
+		status = !gameOverDetector(img, split)
+		window.IMShow(img)
+
+		key := window.WaitKey(1)
+		if key == 27  || window.GetWindowProperty(gocv.WindowPropertyAspectRatio) < 0{	// Close the window if ESC button was pressed or the x button is pressed
+			os.Exit(3)
+		}
+	}
 }
