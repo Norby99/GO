@@ -24,7 +24,6 @@ type points struct {
 	points int64
 	timeStart int64
 	setCounter uint8
-	speedEnc uint8
 }
 
 
@@ -56,10 +55,10 @@ func speedHandler(arrCm, arrBm *[4]int, p *points) {
 }
 
 func reset(arrCm , arrBm *[4]int, p *points){
-	arrCm[0] -= int(p.setCounter)*int(p.speedEnc)
-	arrCm[1] -= int(p.setCounter)*int(p.speedEnc)
-	arrCm[2] -= int(p.setCounter)*int(p.speedEnc)
-	arrCm[3] -= int(p.setCounter)*int(p.speedEnc)
+	arrCm[0] = 100
+	arrCm[1] = 340
+	arrCm[2] = 180
+	arrCm[3] = 350
 	p.timeStart = time.Now().Unix()
 	p.points = 0
 	p.setCounter = 0
@@ -154,10 +153,11 @@ func main() {
 	window.ResizeWindow(2560/4, 1440/4)
 	var status bool = true
 	var dinoRect = image.Rectangle{image.Point{0, 285}, image.Point{85, 380}}
-	var midCactusCoords = [4]int{100, 340, 180, 350}
-	var midBirdCoord = [4]int{140, 300, 170, 310}
+	var midCactusCoords [4]int
+	var midBirdCoord [4]int
+	midBirdCoord[1] = 300
+	midBirdCoord[3] = 310
 	var points = points{}
-	points.speedEnc = 20
 
 	kup, err := keybd_event.NewKeyBonding()
 	if err != nil {
@@ -206,6 +206,7 @@ func main() {
 				kdown.Press()
 				time.Sleep(400 * time.Millisecond)
 				kdown.Release()
+				fmt.Printf("Down - ")
 			}
 
 			fmt.Printf("points: %d\n", points)
